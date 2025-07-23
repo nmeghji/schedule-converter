@@ -58,7 +58,7 @@
             font-weight: 600;
         }
 
-        input[type="url"] {
+        input[type="url"], input[type="password"] {
             width: 100%;
             padding: 15px;
             border: 2px solid #e1e5e9;
@@ -68,7 +68,7 @@
             background: rgba(255, 255, 255, 0.8);
         }
 
-        input[type="url"]:focus {
+        input[type="url"]:focus, input[type="password"]:focus {
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
@@ -198,6 +198,12 @@
         <h1>📅 Schedule to ICS</h1>
         
         <div class="input-group">
+            <label for="openaiApiKey">OpenAI API Key:</label>
+            <input type="password" id="openaiApiKey" placeholder="sk-..." required>
+            <small style="color: #666; font-size: 12px;">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a></small>
+        </div>
+        
+        <div class="input-group">
             <label for="scheduleUrl">Enter Schedule URL:</label>
             <input type="url" id="scheduleUrl" placeholder="https://example.com/schedule" required>
         </div>
@@ -209,8 +215,13 @@
         <div class="status" id="status"></div>
         
         <div class="example">
-            <h3>How it works:</h3>
-            <p>Enter a URL that contains schedule information (events, meetings, classes, etc.). The tool will attempt to extract date, time, and event information from the webpage and convert it into a standard ICS calendar file that you can import into any calendar application.</p>
+            <h3>How it works with OpenAI:</h3>
+            <p>1. <strong>Get OpenAI API Key:</strong> Sign up at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a> and get your API key</p>
+            <p>2. <strong>Enter URL:</strong> Paste any webpage URL that contains schedule information</p>
+            <p>3. <strong>AI Analysis:</strong> GPT-4 will read the webpage and intelligently extract event details</p>
+            <p>4. <strong>Download:</strong> Get a properly formatted ICS file for your calendar app</p>
+            <br>
+            <p><strong>Works with:</strong> Conference schedules, class timetables, event listings, meeting agendas, and more!</p>
         </div>
     </div>
 
@@ -236,8 +247,15 @@
 
         async function processSchedule() {
             const urlInput = document.getElementById('scheduleUrl');
+            const apiKeyInput = document.getElementById('claudeApiKey');
             const processBtn = document.getElementById('processBtn');
             const url = urlInput.value.trim();
+            const apiKey = apiKeyInput.value.trim();
+
+            if (!apiKey) {
+                showStatus('Please enter your Claude API key', 'error');
+                return;
+            }
 
             if (!url) {
                 showStatus('Please enter a valid URL', 'error');
@@ -250,32 +268,121 @@
             }
 
             processBtn.disabled = true;
-            showStatus('Fetching schedule data...');
+            showStatus('Fetching webpage content...');
 
             try {
-                // Simulate fetching and processing the URL
-                // In a real implementation, you'd need a backend service to fetch the URL
-                // due to CORS restrictions
-                await simulateUrlProcessing(url);
+                // Step 1: Fetch the webpage content
+                const htmlContent = await fetchWebpage(url);
                 
-                showStatus('Parsing schedule information...');
-                await new Promise(resolve => setTimeout(resolve, 1500));
+                showStatus('Analyzing schedule with Claude...');
                 
-                // Generate sample schedule data
-                generateSampleSchedule();
+                // Step 2: Send to Claude for analysis
+                const scheduleEvents = await analyzeScheduleWithClaude(htmlContent, apiKey);
+                
+                if (!scheduleEvents || scheduleEvents.length === 0) {
+                    throw new Error('No schedule events found on the webpage');
+                }
                 
                 showStatus('Generating ICS file...');
-                await new Promise(resolve => setTimeout(resolve, 1000));
+                scheduleData = scheduleEvents;
                 
                 const icsContent = generateICS();
                 downloadICS(icsContent);
                 
-                showStatus('ICS file generated successfully! Click below to download:<br><button class="download-link" onclick="downloadICS(generateICS())">📥 Download ICS File</button>', 'success');
+                showStatus(`Successfully generated ICS file with ${scheduleEvents.length} events!<br><button class="download-link" onclick="downloadICS(generateICS())">📥 Download Again</button>`, 'success');
                 
             } catch (error) {
+                console.error('Processing error:', error);
                 showStatus(`Error: ${error.message}`, 'error');
             } finally {
                 processBtn.disabled = false;
+            }
+        }
+
+        async function fetchWebpage(url) {
+            try {
+                // Use a CORS proxy service to fetch the webpage
+                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+                const response = await fetch(proxyUrl);
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch webpage: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                return data.contents;
+            } catch (error) {
+                throw new Error(`Could not fetch webpage: ${error.message}`);
+            }
+        }
+
+        async function analyzeScheduleWithClaude(htmlContent, apiKey) {
+            const prompt = `Please analyze this HTML content and extract any schedule information (events, meetings, classes, etc.). Return the result as a JSON array of events with this exact format:
+
+[
+  {
+    "title": "Event Name",
+    "start": "2024-01-15T14:00:00",
+    "end": "2024-01-15T15:00:00",
+    "description": "Event description",
+    "location": "Event location"
+  }
+]
+
+Important:
+- Use ISO 8601 date format (YYYY-MM-DDTHH:mm:ss)
+- If end time is not specified, add 1 hour to start time
+- If year is not specified, assume current year (2024)
+- If location is not found, use empty string
+- Only return the JSON array, no other text
+- If no schedule events are found, return an empty array []
+
+HTML Content:
+${htmlContent.substring(0, 8000)}`; // Limit content to avoid token limits
+
+            try {
+                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-API-Key': apiKey,
+                        'anthropic-version': '2023-06-01'
+                    },
+                    body: JSON.stringify({
+                        model: 'claude-3-sonnet-20240229',
+                        max_tokens: 2000,
+                        messages: [{
+                            role: 'user',
+                            content: prompt
+                        }]
+                    })
+                });
+
+                if (!response.ok) {
+                    if (response.status === 401) {
+                        throw new Error('Invalid API key. Please check your Claude API key.');
+                    }
+                    throw new Error(`Claude API error: ${response.status}`);
+                }
+
+                const result = await response.json();
+                const claudeResponse = result.content[0].text;
+                
+                // Parse the JSON response
+                try {
+                    const events = JSON.parse(claudeResponse);
+                    return events.map(event => ({
+                        ...event,
+                        start: new Date(event.start),
+                        end: new Date(event.end)
+                    }));
+                } catch (parseError) {
+                    console.error('Failed to parse Claude response:', claudeResponse);
+                    throw new Error('Claude returned invalid schedule data');
+                }
+                
+            } catch (error) {
+                throw new Error(`Claude analysis failed: ${error.message}`);
             }
         }
 
