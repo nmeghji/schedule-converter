@@ -3,80 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Schedule to ICS Converter</title>
+    <title>📅 Schedule to ICS Converter</title>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-
+        
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #333;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
             padding: 20px;
         }
-
+        
         .container {
-            background: rgba(255, 255, 255, 0.95);
-            backdrop-filter: blur(10px);
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
             border-radius: 20px;
-            padding: 40px;
-            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
-            max-width: 600px;
-            width: 100%;
-            transition: transform 0.3s ease;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+            overflow: hidden;
         }
-
-        .container:hover {
-            transform: translateY(-5px);
-        }
-
-        h1 {
+        
+        .header {
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            color: white;
             text-align: center;
-            color: #333;
-            margin-bottom: 30px;
-            font-size: 2.5em;
-            background: linear-gradient(135deg, #667eea, #764ba2);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+            padding: 40px 20px;
         }
-
-        .input-group {
+        
+        .header h1 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header p {
+            font-size: 1.1rem;
+            opacity: 0.9;
+        }
+        
+        .content {
+            padding: 40px;
+        }
+        
+        .steps {
+            display: grid;
+            gap: 30px;
+            margin-bottom: 40px;
+        }
+        
+        .step {
+            background: #f8f9fa;
+            padding: 25px;
+            border-radius: 15px;
+            border-left: 5px solid #4facfe;
+        }
+        
+        .step h3 {
+            color: #2c3e50;
+            margin-bottom: 15px;
+            font-size: 1.3rem;
+        }
+        
+        .form-group {
             margin-bottom: 25px;
         }
-
-        label {
+        
+        .form-group label {
             display: block;
             margin-bottom: 8px;
-            color: #555;
             font-weight: 600;
+            color: #2c3e50;
         }
-
-        input[type="url"], input[type="password"] {
+        
+        .form-group input, .form-group textarea {
             width: 100%;
             padding: 15px;
-            border: 2px solid #e1e5e9;
+            border: 2px solid #e0e6ed;
             border-radius: 10px;
             font-size: 16px;
             transition: all 0.3s ease;
-            background: rgba(255, 255, 255, 0.8);
+            background: white;
         }
-
-        input[type="url"]:focus, input[type="password"]:focus {
+        
+        .form-group input:focus, .form-group textarea:focus {
             outline: none;
-            border-color: #667eea;
-            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-            transform: translateY(-2px);
+            border-color: #4facfe;
+            box-shadow: 0 0 0 3px rgba(79, 172, 254, 0.1);
         }
-
+        
         .btn {
-            background: linear-gradient(135deg, #667eea, #764ba2);
+            background: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
             color: white;
             border: none;
             padding: 15px 30px;
@@ -85,307 +107,358 @@
             font-weight: 600;
             cursor: pointer;
             transition: all 0.3s ease;
-            width: 100%;
-            margin-bottom: 20px;
+            display: inline-block;
+            text-decoration: none;
         }
-
+        
         .btn:hover {
             transform: translateY(-2px);
-            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+            box-shadow: 0 10px 20px rgba(79, 172, 254, 0.3);
         }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
+        
         .btn:disabled {
             opacity: 0.6;
             cursor: not-allowed;
             transform: none;
         }
-
-        .status {
+        
+        .error {
+            background: #fee;
+            color: #c33;
             padding: 15px;
             border-radius: 10px;
-            margin-bottom: 20px;
-            font-weight: 500;
+            margin: 20px 0;
+            border: 1px solid #fcc;
+        }
+        
+        .success {
+            background: #efe;
+            color: #363;
+            padding: 15px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border: 1px solid #cfc;
+        }
+        
+        .loading {
             text-align: center;
-            opacity: 0;
-            transform: translateY(10px);
-            transition: all 0.3s ease;
+            padding: 20px;
         }
-
-        .status.show {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        .status.success {
-            background: rgba(46, 204, 113, 0.1);
-            color: #27ae60;
-            border: 2px solid rgba(46, 204, 113, 0.3);
-        }
-
-        .status.error {
-            background: rgba(231, 76, 60, 0.1);
-            color: #e74c3c;
-            border: 2px solid rgba(231, 76, 60, 0.3);
-        }
-
-        .status.loading {
-            background: rgba(52, 152, 219, 0.1);
-            color: #3498db;
-            border: 2px solid rgba(52, 152, 219, 0.3);
-        }
-
-        .loading-spinner {
-            display: inline-block;
-            width: 20px;
-            height: 20px;
-            border: 3px solid rgba(52, 152, 219, 0.3);
+        
+        .spinner {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #4facfe;
             border-radius: 50%;
-            border-top-color: #3498db;
-            animation: spin 1s ease-in-out infinite;
-            margin-right: 10px;
+            width: 30px;
+            height: 30px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 15px;
         }
-
+        
         @keyframes spin {
-            to { transform: rotate(360deg); }
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
         }
-
-        .download-link {
-            display: inline-block;
-            background: linear-gradient(135deg, #2ecc71, #27ae60);
+        
+        .manual-input {
+            margin-top: 30px;
+            padding-top: 30px;
+            border-top: 2px solid #e0e6ed;
+        }
+        
+        .event-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr auto;
+            gap: 15px;
+            margin-bottom: 15px;
+            align-items: end;
+        }
+        
+        .remove-btn {
+            background: #ff4757;
             color: white;
-            text-decoration: none;
-            padding: 12px 25px;
-            border-radius: 8px;
-            font-weight: 600;
-            transition: all 0.3s ease;
-            margin-top: 10px;
             border: none;
+            padding: 10px;
+            border-radius: 5px;
             cursor: pointer;
             font-size: 14px;
         }
-
-        .download-link:hover {
-            transform: translateY(-2px);
-            box-shadow: 0 8px 16px rgba(46, 204, 113, 0.3);
-        }
-
-        .example {
-            background: rgba(102, 126, 234, 0.1);
-            padding: 15px;
-            border-radius: 10px;
-            margin-top: 20px;
-            border-left: 4px solid #667eea;
-        }
-
-        .example h3 {
-            color: #667eea;
-            margin-bottom: 10px;
-        }
-
-        .example p {
-            color: #666;
-            font-size: 14px;
-            line-height: 1.5;
+        
+        .add-event-btn {
+            background: #2ed573;
+            margin-bottom: 20px;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>📅 Schedule to ICS</h1>
-        
-        <div class="input-group">
-            <label for="openaiApiKey">OpenAI API Key:</label>
-            <input type="password" id="openaiApiKey" placeholder="sk-..." required>
-            <small style="color: #666; font-size: 12px;">Get your API key from <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com/api-keys</a></small>
+        <div class="header">
+            <h1>📅 Schedule to ICS</h1>
+            <p>Convert any schedule to calendar format with AI assistance</p>
         </div>
         
-        <div class="input-group">
-            <label for="scheduleUrl">Enter Schedule URL:</label>
-            <input type="url" id="scheduleUrl" placeholder="https://example.com/schedule" required>
-        </div>
-        
-        <button class="btn" onclick="processSchedule()" id="processBtn">
-            Generate ICS File
-        </button>
-        
-        <div class="status" id="status"></div>
-        
-        <div class="example">
-            <h3>How it works with OpenAI:</h3>
-            <p>1. <strong>Get OpenAI API Key:</strong> Sign up at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a> and get your API key</p>
-            <p>2. <strong>Enter URL:</strong> Paste any webpage URL that contains schedule information</p>
-            <p>3. <strong>AI Analysis:</strong> GPT-4 will read the webpage and intelligently extract event details</p>
-            <p>4. <strong>Download:</strong> Get a properly formatted ICS file for your calendar app</p>
-            <br>
-            <p><strong>Works with:</strong> Conference schedules, class timetables, event listings, meeting agendas, and more!</p>
+        <div class="content">
+            <div class="steps">
+                <div class="step">
+                    <h3>🔑 1. Enter OpenAI API Key (Optional)</h3>
+                    <p>For AI-powered schedule extraction from URLs. You can also add events manually below.</p>
+                    <div class="form-group">
+                        <label for="apiKey">OpenAI API Key:</label>
+                        <input type="password" id="apiKey" placeholder="sk-..." />
+                        <small style="color: #666; font-size: 0.9rem;">Get your key at <a href="https://platform.openai.com/api-keys" target="_blank">platform.openai.com</a></small>
+                    </div>
+                </div>
+                
+                <div class="step">
+                    <h3>🌐 2. Enter Schedule URL (Optional)</h3>
+                    <p>Paste any webpage URL that contains schedule information</p>
+                    <div class="form-group">
+                        <label for="scheduleUrl">Schedule URL:</label>
+                        <input type="url" id="scheduleUrl" placeholder="https://example.com/schedule" />
+                    </div>
+                    <button class="btn" onclick="processSchedule()">Extract Schedule with AI</button>
+                </div>
+            </div>
+            
+            <div id="result"></div>
+            
+            <div class="manual-input">
+                <h3>✏️ Manual Event Entry</h3>
+                <p style="margin-bottom: 20px;">Add events manually or edit AI-extracted events:</p>
+                
+                <button class="btn add-event-btn" onclick="addEventRow()">+ Add Event</button>
+                
+                <div id="events-container">
+                    <div class="event-row">
+                        <div class="form-group">
+                            <label>Event Title:</label>
+                            <input type="text" class="event-title" placeholder="Meeting Title" />
+                        </div>
+                        <div class="form-group">
+                            <label>Start Date & Time:</label>
+                            <input type="datetime-local" class="event-start" />
+                        </div>
+                        <div class="form-group">
+                            <label>End Date & Time:</label>
+                            <input type="datetime-local" class="event-end" />
+                        </div>
+                        <button class="remove-btn" onclick="removeEventRow(this)" style="display: none;">×</button>
+                    </div>
+                </div>
+                
+                <button class="btn" onclick="generateICS()" style="margin-top: 20px;">📅 Generate ICS File</button>
+            </div>
         </div>
     </div>
 
     <script>
-        let scheduleData = [];
+        let eventCount = 1;
 
-        function showStatus(message, type = 'loading') {
-            const status = document.getElementById('status');
-            status.className = `status ${type} show`;
+        function addEventRow() {
+            eventCount++;
+            const container = document.getElementById('events-container');
+            const eventRow = document.createElement('div');
+            eventRow.className = 'event-row';
+            eventRow.innerHTML = `
+                <div class="form-group">
+                    <label>Event Title:</label>
+                    <input type="text" class="event-title" placeholder="Meeting Title" />
+                </div>
+                <div class="form-group">
+                    <label>Start Date & Time:</label>
+                    <input type="datetime-local" class="event-start" />
+                </div>
+                <div class="form-group">
+                    <label>End Date & Time:</label>
+                    <input type="datetime-local" class="event-end" />
+                </div>
+                <button class="remove-btn" onclick="removeEventRow(this)">×</button>
+            `;
+            container.appendChild(eventRow);
             
-            if (type === 'loading') {
-                status.innerHTML = `<span class="loading-spinner"></span>${message}`;
-            } else {
-                status.innerHTML = message;
-            }
-            
-            setTimeout(() => {
-                if (type !== 'success' && type !== 'error') {
-                    status.classList.remove('show');
-                }
-            }, type === 'loading' ? 0 : 5000);
+            // Show remove buttons when there's more than one event
+            updateRemoveButtons();
+        }
+
+        function removeEventRow(button) {
+            button.parentElement.remove();
+            eventCount--;
+            updateRemoveButtons();
+        }
+
+        function updateRemoveButtons() {
+            const removeButtons = document.querySelectorAll('.remove-btn');
+            removeButtons.forEach(btn => {
+                btn.style.display = eventCount > 1 ? 'block' : 'none';
+            });
         }
 
         async function processSchedule() {
-            const urlInput = document.getElementById('scheduleUrl');
-            const apiKeyInput = document.getElementById('claudeApiKey');
-            const processBtn = document.getElementById('processBtn');
-            const url = urlInput.value.trim();
-            const apiKey = apiKeyInput.value.trim();
-
+            // Clear previous results
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = '';
+            
+            // Get form elements with null checking
+            const apiKeyElement = document.getElementById('apiKey');
+            const urlElement = document.getElementById('scheduleUrl');
+            
+            if (!apiKeyElement || !urlElement) {
+                showError('Form elements not found. Please refresh the page.');
+                return;
+            }
+            
+            const apiKey = apiKeyElement.value.trim();
+            const url = urlElement.value.trim();
+            
+            // Validate inputs
             if (!apiKey) {
-                showStatus('Please enter your Claude API key', 'error');
+                showError('Please enter your OpenAI API key first.');
                 return;
             }
-
+            
             if (!url) {
-                showStatus('Please enter a valid URL', 'error');
+                showError('Please enter a schedule URL.');
                 return;
             }
-
+            
             if (!isValidUrl(url)) {
-                showStatus('Please enter a valid URL format', 'error');
+                showError('Please enter a valid URL.');
                 return;
             }
-
-            processBtn.disabled = true;
-            showStatus('Fetching webpage content...');
-
+            
+            // Show loading state
+            showLoading('Analyzing schedule with AI...');
+            
             try {
-                // Step 1: Fetch the webpage content
-                const htmlContent = await fetchWebpage(url);
-                
-                showStatus('Analyzing schedule with Claude...');
-                
-                // Step 2: Send to Claude for analysis
-                const scheduleEvents = await analyzeScheduleWithClaude(htmlContent, apiKey);
-                
-                if (!scheduleEvents || scheduleEvents.length === 0) {
-                    throw new Error('No schedule events found on the webpage');
-                }
-                
-                showStatus('Generating ICS file...');
-                scheduleData = scheduleEvents;
-                
-                const icsContent = generateICS();
-                downloadICS(icsContent);
-                
-                showStatus(`Successfully generated ICS file with ${scheduleEvents.length} events!<br><button class="download-link" onclick="downloadICS(generateICS())">📥 Download Again</button>`, 'success');
-                
-            } catch (error) {
-                console.error('Processing error:', error);
-                showStatus(`Error: ${error.message}`, 'error');
-            } finally {
-                processBtn.disabled = false;
-            }
-        }
-
-        async function fetchWebpage(url) {
-            try {
-                // Use a CORS proxy service to fetch the webpage
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-                const response = await fetch(proxyUrl);
-                
+                // Fetch the webpage content
+                const response = await fetch(`https://api.allorigins.win/get?url=${encodeURIComponent(url)}`);
                 if (!response.ok) {
-                    throw new Error(`Failed to fetch webpage: ${response.status}`);
+                    throw new Error('Failed to fetch webpage');
                 }
                 
                 const data = await response.json();
-                return data.contents;
-            } catch (error) {
-                throw new Error(`Could not fetch webpage: ${error.message}`);
-            }
-        }
-
-        async function analyzeScheduleWithClaude(htmlContent, apiKey) {
-            const prompt = `Please analyze this HTML content and extract any schedule information (events, meetings, classes, etc.). Return the result as a JSON array of events with this exact format:
-
-[
-  {
-    "title": "Event Name",
-    "start": "2024-01-15T14:00:00",
-    "end": "2024-01-15T15:00:00",
-    "description": "Event description",
-    "location": "Event location"
-  }
-]
-
-Important:
-- Use ISO 8601 date format (YYYY-MM-DDTHH:mm:ss)
-- If end time is not specified, add 1 hour to start time
-- If year is not specified, assume current year (2024)
-- If location is not found, use empty string
-- Only return the JSON array, no other text
-- If no schedule events are found, return an empty array []
-
-HTML Content:
-${htmlContent.substring(0, 8000)}`; // Limit content to avoid token limits
-
-            try {
-                const response = await fetch('https://api.anthropic.com/v1/messages', {
+                const htmlContent = data.contents;
+                
+                // Extract text content from HTML
+                const tempDiv = document.createElement('div');
+                tempDiv.innerHTML = htmlContent;
+                const textContent = tempDiv.textContent || tempDiv.innerText || '';
+                
+                // Call OpenAI API
+                const aiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
-                        'X-API-Key': apiKey,
-                        'anthropic-version': '2023-06-01'
+                        'Authorization': `Bearer ${apiKey}`
                     },
                     body: JSON.stringify({
-                        model: 'claude-3-sonnet-20240229',
-                        max_tokens: 2000,
+                        model: 'gpt-4',
                         messages: [{
                             role: 'user',
-                            content: prompt
-                        }]
+                            content: `Extract schedule events from this webpage content and return them as a JSON array of events. Each event should have: title, start (ISO datetime), end (ISO datetime), and description (optional). Here's the content:\n\n${textContent.substring(0, 4000)}`
+                        }],
+                        max_tokens: 2000
                     })
                 });
-
-                if (!response.ok) {
-                    if (response.status === 401) {
-                        throw new Error('Invalid API key. Please check your Claude API key.');
-                    }
-                    throw new Error(`Claude API error: ${response.status}`);
-                }
-
-                const result = await response.json();
-                const claudeResponse = result.content[0].text;
                 
-                // Parse the JSON response
-                try {
-                    const events = JSON.parse(claudeResponse);
-                    return events.map(event => ({
-                        ...event,
-                        start: new Date(event.start),
-                        end: new Date(event.end)
-                    }));
-                } catch (parseError) {
-                    console.error('Failed to parse Claude response:', claudeResponse);
-                    throw new Error('Claude returned invalid schedule data');
+                if (!aiResponse.ok) {
+                    const errorData = await aiResponse.json();
+                    throw new Error(errorData.error?.message || 'OpenAI API request failed');
                 }
+                
+                const aiData = await aiResponse.json();
+                const extractedEvents = JSON.parse(aiData.choices[0].message.content);
+                
+                // Populate the manual form with extracted events
+                populateEventsForm(extractedEvents);
+                showSuccess(`Successfully extracted ${extractedEvents.length} events! Review and edit them below, then generate your ICS file.`);
                 
             } catch (error) {
-                throw new Error(`Claude analysis failed: ${error.message}`);
+                console.error('Error processing schedule:', error);
+                showError(`Error: ${error.message}`);
             }
         }
-
+        
+        function populateEventsForm(events) {
+            const container = document.getElementById('events-container');
+            container.innerHTML = '';
+            eventCount = 0;
+            
+            events.forEach(event => {
+                eventCount++;
+                const eventRow = document.createElement('div');
+                eventRow.className = 'event-row';
+                eventRow.innerHTML = `
+                    <div class="form-group">
+                        <label>Event Title:</label>
+                        <input type="text" class="event-title" value="${escapeHtml(event.title || '')}" />
+                    </div>
+                    <div class="form-group">
+                        <label>Start Date & Time:</label>
+                        <input type="datetime-local" class="event-start" value="${formatDateForInput(event.start)}" />
+                    </div>
+                    <div class="form-group">
+                        <label>End Date & Time:</label>
+                        <input type="datetime-local" class="event-end" value="${formatDateForInput(event.end)}" />
+                    </div>
+                    <button class="remove-btn" onclick="removeEventRow(this)">×</button>
+                `;
+                container.appendChild(eventRow);
+            });
+            
+            updateRemoveButtons();
+        }
+        
+        function generateICS() {
+            const eventRows = document.querySelectorAll('.event-row');
+            const events = [];
+            
+            eventRows.forEach(row => {
+                const title = row.querySelector('.event-title')?.value.trim();
+                const start = row.querySelector('.event-start')?.value;
+                const end = row.querySelector('.event-end')?.value;
+                
+                if (title && start && end) {
+                    events.push({ title, start, end });
+                }
+            });
+            
+            if (events.length === 0) {
+                showError('Please add at least one event with title, start time, and end time.');
+                return;
+            }
+            
+            // Generate ICS content
+            let icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Schedule Converter//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+`;
+            
+            events.forEach(event => {
+                const startDate = new Date(event.start);
+                const endDate = new Date(event.end);
+                
+                icsContent += `BEGIN:VEVENT
+UID:${generateUID()}@scheduleconverter.com
+DTSTAMP:${formatICSDate(new Date())}
+DTSTART:${formatICSDate(startDate)}
+DTEND:${formatICSDate(endDate)}
+SUMMARY:${event.title}
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT
+`;
+            });
+            
+            icsContent += 'END:VCALENDAR';
+            
+            // Create and download file
+            downloadICS(icsContent, 'schedule.ics');
+            showSuccess(`Successfully generated ICS file with ${events.length} events!`);
+        }
+        
         function isValidUrl(string) {
             try {
                 new URL(string);
@@ -394,117 +467,69 @@ ${htmlContent.substring(0, 8000)}`; // Limit content to avoid token limits
                 return false;
             }
         }
-
-        async function simulateUrlProcessing(url) {
-            // In a real implementation, you would:
-            // 1. Send the URL to your backend
-            // 2. Backend fetches the URL content
-            // 3. Parse HTML for schedule information
-            // 4. Return structured data
+        
+        function escapeHtml(text) {
+            const map = {
+                '&': '&amp;',
+                '<': '&lt;',
+                '>': '&gt;',
+                '"': '&quot;',
+                "'": '&#039;'
+            };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+        
+        function formatDateForInput(dateString) {
+            if (!dateString) return '';
+            const date = new Date(dateString);
+            if (isNaN(date.getTime())) return '';
             
-            await new Promise(resolve => setTimeout(resolve, 2000));
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            const hours = String(date.getHours()).padStart(2, '0');
+            const minutes = String(date.getMinutes()).padStart(2, '0');
             
-            // For demo purposes, we'll generate sample data
-            return true;
+            return `${year}-${month}-${day}T${hours}:${minutes}`;
         }
-
-        function generateSampleSchedule() {
-            const today = new Date();
-            scheduleData = [
-                {
-                    title: "Team Meeting",
-                    start: new Date(today.getTime() + 24 * 60 * 60 * 1000), // Tomorrow
-                    end: new Date(today.getTime() + 24 * 60 * 60 * 1000 + 60 * 60 * 1000), // +1 hour
-                    description: "Weekly team sync meeting",
-                    location: "Conference Room A"
-                },
-                {
-                    title: "Project Review",
-                    start: new Date(today.getTime() + 48 * 60 * 60 * 1000), // Day after tomorrow
-                    end: new Date(today.getTime() + 48 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), // +2 hours
-                    description: "Quarterly project review session",
-                    location: "Main Hall"
-                },
-                {
-                    title: "Training Workshop",
-                    start: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000), // Next week
-                    end: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000), // +4 hours
-                    description: "Professional development workshop",
-                    location: "Training Center"
-                }
-            ];
+        
+        function formatICSDate(date) {
+            return date.toISOString().replace(/[:-]/g, '').split('.')[0] + 'Z';
         }
-
-        function generateICS() {
-            let icsContent = [
-                'BEGIN:VCALENDAR',
-                'VERSION:2.0',
-                'PRODID:-//Schedule to ICS Converter//EN',
-                'CALSCALE:GREGORIAN',
-                'METHOD:PUBLISH'
-            ];
-
-            scheduleData.forEach((event, index) => {
-                const startDate = formatDateForICS(event.start);
-                const endDate = formatDateForICS(event.end);
-                const uid = `event-${index}-${Date.now()}@schedule-converter.com`;
-                
-                icsContent.push(
-                    'BEGIN:VEVENT',
-                    `UID:${uid}`,
-                    `DTSTART:${startDate}`,
-                    `DTEND:${endDate}`,
-                    `SUMMARY:${event.title}`,
-                    `DESCRIPTION:${event.description || ''}`,
-                    `LOCATION:${event.location || ''}`,
-                    `DTSTAMP:${formatDateForICS(new Date())}`,
-                    'END:VEVENT'
-                );
-            });
-
-            icsContent.push('END:VCALENDAR');
-            return icsContent.join('\r\n');
+        
+        function generateUID() {
+            return Date.now().toString(36) + Math.random().toString(36).substr(2);
         }
-
-        function formatDateForICS(date) {
-            return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+        
+        function downloadICS(content, filename) {
+            const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
         }
-
-        function downloadICS(content) {
-            try {
-                const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                
-                link.href = url;
-                link.download = `schedule-${new Date().toISOString().split('T')[0]}.ics`;
-                link.style.display = 'none';
-                
-                document.body.appendChild(link);
-                
-                // Force click and cleanup
-                setTimeout(() => {
-                    link.click();
-                    document.body.removeChild(link);
-                    URL.revokeObjectURL(url);
-                }, 100);
-                
-            } catch (error) {
-                console.error('Download failed:', error);
-                // Fallback: show content in new window for manual save
-                const newWindow = window.open();
-                newWindow.document.write('<pre>' + content + '</pre>');
-                newWindow.document.title = 'Schedule ICS File';
-                showStatus('Download failed. File content opened in new window. Save as .ics file.', 'error');
-            }
+        
+        function showLoading(message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `
+                <div class="loading">
+                    <div class="spinner"></div>
+                    <p>${message}</p>
+                </div>
+            `;
         }
-
-        // Allow Enter key to trigger processing
-        document.getElementById('scheduleUrl').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                processSchedule();
-            }
-        });
+        
+        function showError(message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="error">${message}</div>`;
+        }
+        
+        function showSuccess(message) {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = `<div class="success">${message}</div>`;
+        }
     </script>
 </body>
 </html>
