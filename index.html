@@ -358,27 +358,33 @@
 
         async function extractScheduleWithAI(htmlContent, apiKey) {
             const prompt = `
-            Please analyze the following HTML content and extract schedule/event information. 
-            Return the data in JSON format with the following structure:
+            You are a schedule extraction expert. Analyze the following HTML content and extract all schedule/event information.
+            
+            IMPORTANT: You must respond with ONLY valid JSON in this exact format:
             {
                 "events": [
                     {
                         "title": "Event Title",
-                        "description": "Event Description",
-                        "startDateTime": "2024-01-01T10:00:00",
-                        "endDateTime": "2024-01-01T11:00:00",
+                        "description": "Event Description", 
+                        "startDateTime": "2024-07-09T19:30:00",
+                        "endDateTime": "2024-07-09T21:30:00",
                         "location": "Event Location"
                     }
                 ]
             }
             
-            Extract all events, sessions, classes, or meetings you can find. 
-            Make sure to convert all times to ISO 8601 format.
-            If no specific year is mentioned, assume 2024.
-            If no end time is given, add 1 hour to the start time.
+            Rules:
+            - Extract ALL games, matches, events, sessions, classes, or meetings
+            - For sports games: title should be "Home Team vs Visitor Team" or similar
+            - Use ISO 8601 datetime format (YYYY-MM-DDTHH:mm:ss)
+            - If year is missing, use 2024
+            - If end time is missing, add 2 hours to start time for games, 1 hour for other events
+            - Include field/room information in location if available
+            - Do not include any text before or after the JSON
+            - Make sure all JSON is properly formatted and valid
             
             HTML Content:
-            ${htmlContent.substring(0, 15000)} // Limit content to avoid token limits
+            ${htmlContent.substring(0, 12000)}
             `;
 
             try {
@@ -389,15 +395,19 @@
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        model: 'gpt-4',
+                        model: 'gpt-4o-mini',
                         messages: [
+                            {
+                                role: 'system',
+                                content: 'You are a JSON extraction expert. Always respond with valid JSON only, no other text.'
+                            },
                             {
                                 role: 'user',
                                 content: prompt
                             }
                         ],
-                        max_tokens: 3000,
-                        temperature: 0.1
+                        max_tokens: 4000,
+                        temperature: 0
                     })
                 });
 
@@ -407,20 +417,55 @@
                 }
 
                 const data = await response.json();
-                const content = data.choices[0].message.content;
+                let content = data.choices[0].message.content.trim();
                 
-                // Try to extract JSON from the response
-                const jsonMatch = content.match(/\{[\s\S]*\}/);
-                if (!jsonMatch) {
-                    throw new Error('Could not extract valid JSON from AI response');
+                // Remove markdown code blocks if present
+                content = content.replace(/```json\s*/, '').replace(/```\s*$/, '');
+                
+                // Try multiple JSON extraction methods
+                let jsonData;
+                
+                // Method 1: Direct parsing
+                try {
+                    jsonData = JSON.parse(content);
+                } catch (e) {
+                    // Method 2: Extract JSON from text
+                    const jsonMatch = content.match(/\{[\s\S]*?\}(?=\s*$)/);
+                    if (jsonMatch) {
+                        jsonData = JSON.parse(jsonMatch[0]);
+                    } else {
+                        // Method 3: Find JSON boundaries
+                        const startIdx = content.indexOf('{');
+                        const endIdx = content.lastIndexOf('}');
+                        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
+                            jsonData = JSON.parse(content.substring(startIdx, endIdx + 1));
+                        } else {
+                            throw new Error('No valid JSON found in response');
+                        }
+                    }
                 }
                 
-                return JSON.parse(jsonMatch[0]);
+                // Validate the structure
+                if (!jsonData || !jsonData.events || !Array.isArray(jsonData.events)) {
+                    throw new Error('Invalid JSON structure - missing events array');
+                }
+                
+                // Validate each event
+                jsonData.events = jsonData.events.filter(event => {
+                    return event.title && event.startDateTime && event.endDateTime;
+                });
+                
+                if (jsonData.events.length === 0) {
+                    throw new Error('No valid events found in the schedule');
+                }
+                
+                return jsonData;
                 
             } catch (error) {
-                if (error.message.includes('API key')) {
+                if (error.message.includes('API key') || error.message.includes('Unauthorized')) {
                     throw new Error('Invalid API key. Please check your OpenAI API key.');
                 }
+                console.error('AI Response parsing error:', error);
                 throw new Error(`AI extraction failed: ${error.message}`);
             }
         }
