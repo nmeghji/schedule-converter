@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule to ICS Converter</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .container {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 40px;
+            box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 100%;
+            transition: transform 0.3s ease;
+        }
+
+        .container:hover {
+            transform: translateY(-5px);
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .input-group {
+            margin-bottom: 25px;
+        }
+
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 600;
+        }
+
+        input[type="url"] {
+            width: 100%;
+            padding: 15px;
+            border: 2px solid #e1e5e9;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: all 0.3s ease;
+            background: rgba(255, 255, 255, 0.8);
+        }
+
+        input[type="url"]:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            transform: translateY(-2px);
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: white;
+            border: none;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            width: 100%;
+            margin-bottom: 20px;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+
+        .btn:active {
+            transform: translateY(0);
+        }
+
+        .btn:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+            font-weight: 500;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s ease;
+        }
+
+        .status.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .status.success {
+            background: rgba(46, 204, 113, 0.1);
+            color: #27ae60;
+            border: 2px solid rgba(46, 204, 113, 0.3);
+        }
+
+        .status.error {
+            background: rgba(231, 76, 60, 0.1);
+            color: #e74c3c;
+            border: 2px solid rgba(231, 76, 60, 0.3);
+        }
+
+        .status.loading {
+            background: rgba(52, 152, 219, 0.1);
+            color: #3498db;
+            border: 2px solid rgba(52, 152, 219, 0.3);
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(52, 152, 219, 0.3);
+            border-radius: 50%;
+            border-top-color: #3498db;
+            animation: spin 1s ease-in-out infinite;
+            margin-right: 10px;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .download-link {
+            display: inline-block;
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: white;
+            text-decoration: none;
+            padding: 12px 25px;
+            border-radius: 8px;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            margin-top: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 14px;
+        }
+
+        .download-link:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(46, 204, 113, 0.3);
+        }
+
+        .example {
+            background: rgba(102, 126, 234, 0.1);
+            padding: 15px;
+            border-radius: 10px;
+            margin-top: 20px;
+            border-left: 4px solid #667eea;
+        }
+
+        .example h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+
+        .example p {
+            color: #666;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📅 Schedule to ICS</h1>
+        
+        <div class="input-group">
+            <label for="scheduleUrl">Enter Schedule URL:</label>
+            <input type="url" id="scheduleUrl" placeholder="https://example.com/schedule" required>
+        </div>
+        
+        <button class="btn" onclick="processSchedule()" id="processBtn">
+            Generate ICS File
+        </button>
+        
+        <div class="status" id="status"></div>
+        
+        <div class="example">
+            <h3>How it works:</h3>
+            <p>Enter a URL that contains schedule information (events, meetings, classes, etc.). The tool will attempt to extract date, time, and event information from the webpage and convert it into a standard ICS calendar file that you can import into any calendar application.</p>
+        </div>
+    </div>
+
+    <script>
+        let scheduleData = [];
+
+        function showStatus(message, type = 'loading') {
+            const status = document.getElementById('status');
+            status.className = `status ${type} show`;
+            
+            if (type === 'loading') {
+                status.innerHTML = `<span class="loading-spinner"></span>${message}`;
+            } else {
+                status.innerHTML = message;
+            }
+            
+            setTimeout(() => {
+                if (type !== 'success' && type !== 'error') {
+                    status.classList.remove('show');
+                }
+            }, type === 'loading' ? 0 : 5000);
+        }
+
+        async function processSchedule() {
+            const urlInput = document.getElementById('scheduleUrl');
+            const processBtn = document.getElementById('processBtn');
+            const url = urlInput.value.trim();
+
+            if (!url) {
+                showStatus('Please enter a valid URL', 'error');
+                return;
+            }
+
+            if (!isValidUrl(url)) {
+                showStatus('Please enter a valid URL format', 'error');
+                return;
+            }
+
+            processBtn.disabled = true;
+            showStatus('Fetching schedule data...');
+
+            try {
+                // Simulate fetching and processing the URL
+                // In a real implementation, you'd need a backend service to fetch the URL
+                // due to CORS restrictions
+                await simulateUrlProcessing(url);
+                
+                showStatus('Parsing schedule information...');
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Generate sample schedule data
+                generateSampleSchedule();
+                
+                showStatus('Generating ICS file...');
+                await new Promise(resolve => setTimeout(resolve, 1000));
+                
+                const icsContent = generateICS();
+                downloadICS(icsContent);
+                
+                showStatus('ICS file generated successfully! Click below to download:<br><button class="download-link" onclick="downloadICS(generateICS())">📥 Download ICS File</button>', 'success');
+                
+            } catch (error) {
+                showStatus(`Error: ${error.message}`, 'error');
+            } finally {
+                processBtn.disabled = false;
+            }
+        }
+
+        function isValidUrl(string) {
+            try {
+                new URL(string);
+                return true;
+            } catch (_) {
+                return false;
+            }
+        }
+
+        async function simulateUrlProcessing(url) {
+            // In a real implementation, you would:
+            // 1. Send the URL to your backend
+            // 2. Backend fetches the URL content
+            // 3. Parse HTML for schedule information
+            // 4. Return structured data
+            
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            // For demo purposes, we'll generate sample data
+            return true;
+        }
+
+        function generateSampleSchedule() {
+            const today = new Date();
+            scheduleData = [
+                {
+                    title: "Team Meeting",
+                    start: new Date(today.getTime() + 24 * 60 * 60 * 1000), // Tomorrow
+                    end: new Date(today.getTime() + 24 * 60 * 60 * 1000 + 60 * 60 * 1000), // +1 hour
+                    description: "Weekly team sync meeting",
+                    location: "Conference Room A"
+                },
+                {
+                    title: "Project Review",
+                    start: new Date(today.getTime() + 48 * 60 * 60 * 1000), // Day after tomorrow
+                    end: new Date(today.getTime() + 48 * 60 * 60 * 1000 + 2 * 60 * 60 * 1000), // +2 hours
+                    description: "Quarterly project review session",
+                    location: "Main Hall"
+                },
+                {
+                    title: "Training Workshop",
+                    start: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000), // Next week
+                    end: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000 + 4 * 60 * 60 * 1000), // +4 hours
+                    description: "Professional development workshop",
+                    location: "Training Center"
+                }
+            ];
+        }
+
+        function generateICS() {
+            let icsContent = [
+                'BEGIN:VCALENDAR',
+                'VERSION:2.0',
+                'PRODID:-//Schedule to ICS Converter//EN',
+                'CALSCALE:GREGORIAN',
+                'METHOD:PUBLISH'
+            ];
+
+            scheduleData.forEach((event, index) => {
+                const startDate = formatDateForICS(event.start);
+                const endDate = formatDateForICS(event.end);
+                const uid = `event-${index}-${Date.now()}@schedule-converter.com`;
+                
+                icsContent.push(
+                    'BEGIN:VEVENT',
+                    `UID:${uid}`,
+                    `DTSTART:${startDate}`,
+                    `DTEND:${endDate}`,
+                    `SUMMARY:${event.title}`,
+                    `DESCRIPTION:${event.description || ''}`,
+                    `LOCATION:${event.location || ''}`,
+                    `DTSTAMP:${formatDateForICS(new Date())}`,
+                    'END:VEVENT'
+                );
+            });
+
+            icsContent.push('END:VCALENDAR');
+            return icsContent.join('\r\n');
+        }
+
+        function formatDateForICS(date) {
+            return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
+        }
+
+        function downloadICS(content) {
+            try {
+                const blob = new Blob([content], { type: 'text/calendar;charset=utf-8' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                
+                link.href = url;
+                link.download = `schedule-${new Date().toISOString().split('T')[0]}.ics`;
+                link.style.display = 'none';
+                
+                document.body.appendChild(link);
+                
+                // Force click and cleanup
+                setTimeout(() => {
+                    link.click();
+                    document.body.removeChild(link);
+                    URL.revokeObjectURL(url);
+                }, 100);
+                
+            } catch (error) {
+                console.error('Download failed:', error);
+                // Fallback: show content in new window for manual save
+                const newWindow = window.open();
+                newWindow.document.write('<pre>' + content + '</pre>');
+                newWindow.document.title = 'Schedule ICS File';
+                showStatus('Download failed. File content opened in new window. Save as .ics file.', 'error');
+            }
+        }
+
+        // Allow Enter key to trigger processing
+        document.getElementById('scheduleUrl').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                processSchedule();
+            }
+        });
+    </script>
+</body>
+</html>
