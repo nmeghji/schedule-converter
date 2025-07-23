@@ -232,6 +232,12 @@
                     <input type="url" id="scheduleUrl" placeholder="https://example.com/schedule" required>
                 </div>
 
+                <div class="form-group">
+                    <label for="manualContent">Or paste schedule content directly (if URL doesn't work)</label>
+                    <textarea id="manualContent" rows="6" placeholder="Paste the schedule text here as an alternative to URL..."></textarea>
+                    <div class="api-key-hint">Use this if the URL fetch fails due to proxy issues</div>
+                </div>
+
                 <button type="submit" class="btn" id="convertBtn">
                     Convert Schedule to ICS
                 </button>
@@ -296,6 +302,7 @@
         async function processSchedule() {
             const apiKey = document.getElementById('apiKey').value.trim();
             const scheduleUrl = document.getElementById('scheduleUrl').value.trim();
+            const manualContent = document.getElementById('manualContent').value.trim();
             
             // Validation
             if (!apiKey) {
@@ -303,12 +310,12 @@
                 return;
             }
             
-            if (!scheduleUrl) {
-                showError('Please enter a schedule URL');
+            if (!scheduleUrl && !manualContent) {
+                showError('Please enter a schedule URL or paste schedule content directly');
                 return;
             }
             
-            if (!isValidUrl(scheduleUrl)) {
+            if (scheduleUrl && !isValidUrl(scheduleUrl)) {
                 showError('Please enter a valid URL');
                 return;
             }
@@ -317,10 +324,18 @@
                 setLoading(true);
                 hideMessages();
 
-                // Step 1: Fetch the webpage content
-                const webContent = await fetchWebContent(scheduleUrl);
+                let webContent;
                 
-                // Step 2: Extract schedule using OpenAI
+                if (manualContent) {
+                    // Use manually pasted content
+                    webContent = manualContent;
+                    console.log('Using manually pasted content');
+                } else {
+                    // Step 1: Fetch the webpage content
+                    webContent = await fetchWebContent(scheduleUrl);
+                }
+                
+                // Step 2: Extract schedule using AI or manual parsing
                 const scheduleData = await extractScheduleWithAI(webContent, apiKey);
                 
                 // Step 3: Generate ICS file
@@ -329,7 +344,7 @@
                 // Step 4: Download the file
                 downloadICS(icsContent, 'schedule.ics');
                 
-                showSuccess('Schedule converted successfully! Your ICS file is downloading.');
+                showSuccess(`Schedule converted successfully! Found ${scheduleData.events.length} events. Your ICS file is downloading.`);
                 
             } catch (error) {
                 console.error('Error processing schedule:', error);
@@ -340,23 +355,77 @@
         }
 
         async function fetchWebContent(url) {
-            try {
-                // Use CORS proxy to fetch the content
-                const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-                const response = await fetch(proxyUrl);
-                
-                if (!response.ok) {
-                    throw new Error('Failed to fetch webpage content');
+            const proxies = [
+                // Primary proxy
+                `https://corsproxy.io/?${encodeURIComponent(url)}`,
+                // Backup proxies
+                `https://cors-anywhere.herokuapp.com/${url}`,
+                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
+                // Direct fetch (might work for some sites)
+                url
+            ];
+
+            let lastError;
+            
+            for (let i = 0; i < proxies.length; i++) {
+                try {
+                    console.log(`Trying proxy ${i + 1}/${proxies.length}: ${proxies[i].split('?')[0]}`);
+                    
+                    const response = await fetch(proxies[i], {
+                        method: 'GET',
+                        headers: {
+                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+                        }
+                    });
+                    
+                    if (!response.ok) {
+                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                    }
+                    
+                    let content;
+                    const contentType = response.headers.get('content-type') || '';
+                    
+                    if (contentType.includes('application/json')) {
+                        // Handle JSON response from proxy services
+                        const data = await response.json();
+                        content = data.contents || data.data || data.body || JSON.stringify(data);
+                    } else {
+                        // Handle direct HTML response
+                        content = await response.text();
+                    }
+                    
+                    if (content && content.length > 100) {
+                        console.log(`Successfully fetched content using proxy ${i + 1}`);
+                        return content;
+                    } else {
+                        throw new Error('Empty or invalid response');
+                    }
+                    
+                } catch (error) {
+                    console.warn(`Proxy ${i + 1} failed:`, error.message);
+                    lastError = error;
+                    
+                    // Add delay between attempts
+                    if (i < proxies.length - 1) {
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
                 }
-                
-                const data = await response.json();
-                return data.contents;
-            } catch (error) {
-                throw new Error('Unable to fetch webpage content. Please check the URL and try again.');
             }
+            
+            // If all proxies fail, try manual input option
+            throw new Error(`Unable to fetch webpage content. All proxy services failed. Last error: ${lastError?.message}. 
+
+Alternative: You can copy and paste the schedule content directly instead of using a URL.`);
         }
 
         async function extractScheduleWithAI(htmlContent, apiKey) {
+            // First try manual parsing for common schedule formats
+            const manuallyParsed = tryManualParsing(htmlContent);
+            if (manuallyParsed && manuallyParsed.events.length > 0) {
+                return manuallyParsed;
+            }
+
+            // Fallback to AI parsing
             const prompt = `
             You are a schedule extraction expert. Analyze the following HTML content and extract all schedule/event information.
             
@@ -466,8 +535,79 @@
                     throw new Error('Invalid API key. Please check your OpenAI API key.');
                 }
                 console.error('AI Response parsing error:', error);
-                throw new Error(`AI extraction failed: ${error.message}`);
+                throw new Error(`AI extraction failed: ${error.message}. Try a different schedule URL or format.`);
             }
+        }
+
+        function tryManualParsing(htmlContent) {
+            const events = [];
+            
+            // Look for soccer schedule patterns like "Wed 07/09 07:30 pm Field 2 TEAM1 TEAM2"
+            const gamePatterns = [
+                // Pattern: Wed 07/09 07:30 pm Field 2 HOME_TEAM VISITOR_TEAM
+                /(\w{3})\s+(\d{1,2}\/\d{1,2})\s+(\d{1,2}:\d{2})\s+(am|pm)\s+Field\s+(\d+)\s+([A-Z\s&'#\-]+?)\s+([A-Z\s&'#\-]+?)\s*(?:\d+\s*-\s*\d+|-)?\s*$/gim,
+                // Pattern: Date Time Field Home Visitor (more flexible)
+                /(\w{3})\s+(\d{1,2}\/\d{1,2})\s+(\d{1,2}:\d{2})\s+(am|pm)\s+Field\s+(\d+)\s+(.+?)\s+(.+?)\s*(?:\d+\s*-\s*\d+|-)?\s*$/gim
+            ];
+
+            for (const pattern of gamePatterns) {
+                let match;
+                while ((match = pattern.exec(htmlContent)) !== null) {
+                    const [, dayOfWeek, date, time, ampm, field, homeTeam, visitorTeam] = match;
+                    
+                    // Clean up team names
+                    const cleanHome = homeTeam.trim().replace(/\s+/g, ' ');
+                    const cleanVisitor = visitorTeam.trim().replace(/\s+/g, ' ');
+                    
+                    // Skip if team names are too short or seem invalid
+                    if (cleanHome.length < 2 || cleanVisitor.length < 2 || 
+                        cleanHome === cleanVisitor || 
+                        /^\d+$/.test(cleanHome) || /^\d+$/.test(cleanVisitor)) {
+                        continue;
+                    }
+                    
+                    try {
+                        // Parse the date and time
+                        const [month, day] = date.split('/');
+                        const [hour, minute] = time.split(':');
+                        let hour24 = parseInt(hour);
+                        
+                        if (ampm.toLowerCase() === 'pm' && hour24 !== 12) {
+                            hour24 += 12;
+                        } else if (ampm.toLowerCase() === 'am' && hour24 === 12) {
+                            hour24 = 0;
+                        }
+                        
+                        // Create date (assuming current year if not specified)
+                        const currentYear = new Date().getFullYear();
+                        const startDate = new Date(currentYear, parseInt(month) - 1, parseInt(day), hour24, parseInt(minute));
+                        const endDate = new Date(startDate.getTime() + (2 * 60 * 60 * 1000)); // Add 2 hours
+                        
+                        events.push({
+                            title: `${cleanHome} vs ${cleanVisitor}`,
+                            description: `Soccer game: ${cleanHome} vs ${cleanVisitor}`,
+                            startDateTime: startDate.toISOString().slice(0, 19),
+                            endDateTime: endDate.toISOString().slice(0, 19),
+                            location: `Field ${field}`
+                        });
+                    } catch (e) {
+                        console.warn('Failed to parse game:', match[0], e);
+                        continue;
+                    }
+                }
+            }
+            
+            // Look for other common schedule formats
+            if (events.length === 0) {
+                // Try to find time patterns in general
+                const timePattern = /(\d{1,2}:\d{2})\s*(am|pm)/gi;
+                const matches = htmlContent.match(timePattern);
+                if (matches && matches.length > 0) {
+                    console.log('Found time patterns but could not parse full schedule format');
+                }
+            }
+            
+            return { events };
         }
 
         function generateICS(scheduleData) {
