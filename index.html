@@ -155,9 +155,26 @@
             margin: 0 auto 15px;
         }
         
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
+        .calendar-buttons {
+            margin-top: 15px;
+        }
+        
+        .calendar-btn {
+            font-size: 14px;
+            padding: 12px 20px;
+            margin-bottom: 10px;
+        }
+        
+        @media (max-width: 768px) {
+            .calendar-buttons {
+                display: block;
+            }
+            .calendar-btn {
+                display: block;
+                width: 100%;
+                margin-right: 0 !important;
+                margin-bottom: 10px;
+            }
         }
         
         .manual-input {
@@ -246,13 +263,50 @@
                     </div>
                 </div>
                 
-                <button class="btn" onclick="generateICS()" style="margin-top: 20px;">📅 Generate ICS File</button>
+                <div style="margin-top: 20px;">
+                    <button class="btn" onclick="generateICS()" style="margin-right: 15px;">📅 Download ICS File</button>
+                    
+                    <!-- Native Mobile Calendar Buttons (shown only on mobile) -->
+                    <div id="native-calendar-buttons" class="calendar-buttons" style="display: none; margin-bottom: 15px;">
+                        <button id="ios-calendar-btn" class="btn calendar-btn" onclick="addToNativeCalendar('ios')" style="background: #007AFF; margin-right: 10px; display: none;">🍎 Add to Apple Calendar</button>
+                        <button id="android-calendar-btn" class="btn calendar-btn" onclick="addToNativeCalendar('android')" style="background: #34A853; margin-right: 10px; display: none;">🤖 Add to Android Calendar</button>
+                    </div>
+                    
+                    <!-- Web Calendar Buttons -->
+                    <div class="calendar-buttons" style="display: inline-block;">
+                        <button class="btn calendar-btn" onclick="addToCalendar('google')" style="background: #4285f4; margin-right: 10px;">📅 Add to Google Calendar</button>
+                        <button class="btn calendar-btn" onclick="addToCalendar('outlook')" style="background: #0078d4; margin-right: 10px;">📅 Add to Outlook</button>
+                        <button class="btn calendar-btn" onclick="addToCalendar('yahoo')" style="background: #6001d2;">📅 Add to Yahoo Calendar</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
 
     <script>
         let eventCount = 1;
+
+        // Device detection and native calendar button setup
+        function detectDevice() {
+            const userAgent = navigator.userAgent.toLowerCase();
+            const isIOS = /iphone|ipad|ipod/.test(userAgent);
+            const isAndroid = /android/.test(userAgent);
+            const isMobile = isIOS || isAndroid;
+            
+            if (isMobile) {
+                const nativeButtonsContainer = document.getElementById('native-calendar-buttons');
+                nativeButtonsContainer.style.display = 'block';
+                
+                if (isIOS) {
+                    document.getElementById('ios-calendar-btn').style.display = 'inline-block';
+                } else if (isAndroid) {
+                    document.getElementById('android-calendar-btn').style.display = 'inline-block';
+                }
+            }
+        }
+
+        // Initialize device detection when page loads
+        document.addEventListener('DOMContentLoaded', detectDevice);
 
         function addEventRow() {
             eventCount++;
@@ -409,7 +463,195 @@
             updateRemoveButtons();
         }
         
-        function generateICS() {
+        function addToNativeCalendar(platform) {
+            const eventRows = document.querySelectorAll('.event-row');
+            const events = [];
+            
+            eventRows.forEach(row => {
+                const title = row.querySelector('.event-title')?.value.trim();
+                const start = row.querySelector('.event-start')?.value;
+                const end = row.querySelector('.event-end')?.value;
+                
+                if (title && start && end) {
+                    events.push({ title, start, end });
+                }
+            });
+            
+            if (events.length === 0) {
+                showError('Please add at least one event with title, start time, and end time.');
+                return;
+            }
+            
+            if (platform === 'ios') {
+                addToIOSCalendar(events);
+            } else if (platform === 'android') {
+                addToAndroidCalendar(events);
+            }
+        }
+        
+        function addToIOSCalendar(events) {
+            // Generate ICS content for iOS
+            let icsContent = generateICSContent(events);
+            
+            // Create a data URL with the ICS content
+            const dataUrl = `data:text/calendar;charset=utf8,${encodeURIComponent(icsContent)}`;
+            
+            // Try to open with iOS Calendar app
+            const link = document.createElement('a');
+            link.href = dataUrl;
+            link.download = 'events.ics';
+            
+            // For iOS, we'll create a temporary link and click it
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showSuccess(`ICS file created for Apple Calendar! Tap "Add All" when prompted to add ${events.length} event(s) to your iOS Calendar app.`);
+        }
+        
+        function addToAndroidCalendar(events) {
+            if (events.length === 1) {
+                // For single event, use Android's calendar intent
+                const event = events[0];
+                const startDate = new Date(event.start);
+                const endDate = new Date(event.end);
+                
+                // Android Calendar intent URL
+                const intentUrl = `intent://edit?` +
+                    `title=${encodeURIComponent(event.title)}&` +
+                    `beginTime=${startDate.getTime()}&` +
+                    `endTime=${endDate.getTime()}` +
+                    `#Intent;scheme=content;` +
+                    `type=vnd.android.cursor.item/event;` +
+                    `package=com.android.calendar;` +
+                    `end`;
+                
+                try {
+                    window.location.href = intentUrl;
+                    showSuccess('Opening Android Calendar app to add your event...');
+                } catch (error) {
+                    // Fallback to ICS file
+                    fallbackToICS(events, 'Android');
+                }
+            } else {
+                // For multiple events, fall back to ICS file
+                fallbackToICS(events, 'Android');
+            }
+        }
+        
+        function fallbackToICS(events, platform) {
+            let icsContent = generateICSContent(events);
+            
+            const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+            const link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'events.ics';
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            showSuccess(`ICS file downloaded! Open it with your ${platform} calendar app to add ${events.length} event(s).`);
+        }
+        
+        function generateICSContent(events) {
+            let icsContent = `BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//Schedule Converter//EN
+CALSCALE:GREGORIAN
+METHOD:PUBLISH
+`;
+            
+            events.forEach(event => {
+                const startDate = new Date(event.start);
+                const endDate = new Date(event.end);
+                
+                icsContent += `BEGIN:VEVENT
+UID:${generateUID()}@scheduleconverter.com
+DTSTAMP:${formatICSDate(new Date())}
+DTSTART:${formatICSDate(startDate)}
+DTEND:${formatICSDate(endDate)}
+SUMMARY:${event.title}
+STATUS:CONFIRMED
+TRANSP:OPAQUE
+END:VEVENT
+`;
+            });
+            
+            icsContent += 'END:VCALENDAR';
+            return icsContent;
+        }
+            const eventRows = document.querySelectorAll('.event-row');
+            const events = [];
+            
+            eventRows.forEach(row => {
+                const title = row.querySelector('.event-title')?.value.trim();
+                const start = row.querySelector('.event-start')?.value;
+                const end = row.querySelector('.event-end')?.value;
+                
+                if (title && start && end) {
+                    events.push({ title, start, end });
+                }
+            });
+            
+            if (events.length === 0) {
+                showError('Please add at least one event with title, start time, and end time.');
+                return;
+            }
+            
+            // For multiple events, we'll add them one by one
+            if (events.length === 1) {
+                addSingleEventToCalendar(events[0], service);
+            } else {
+                addMultipleEventsToCalendar(events, service);
+            }
+        }
+        
+        function addSingleEventToCalendar(event, service) {
+            const startDate = new Date(event.start);
+            const endDate = new Date(event.end);
+            
+            let url = '';
+            
+            switch (service) {
+                case 'google':
+                    const startFormatted = formatDateForGoogle(startDate);
+                    const endFormatted = formatDateForGoogle(endDate);
+                    url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(event.title)}&dates=${startFormatted}/${endFormatted}`;
+                    break;
+                    
+                case 'outlook':
+                    const startIso = startDate.toISOString();
+                    const endIso = endDate.toISOString();
+                    url = `https://outlook.live.com/calendar/0/deeplink/compose?subject=${encodeURIComponent(event.title)}&startdt=${startIso}&enddt=${endIso}`;
+                    break;
+                    
+                case 'yahoo':
+                    const startYahoo = Math.floor(startDate.getTime() / 1000);
+                    const duration = Math.floor((endDate.getTime() - startDate.getTime()) / 1000 / 60); // duration in minutes
+                    url = `https://calendar.yahoo.com/?v=60&view=d&type=20&title=${encodeURIComponent(event.title)}&st=${startYahoo}&dur=${duration}`;
+                    break;
+            }
+            
+            if (url) {
+                window.open(url, '_blank');
+                showSuccess(`Opening ${service} calendar to add "${event.title}"`);
+            }
+        }
+        
+        function addMultipleEventsToCalendar(events, service) {
+            showSuccess(`Opening ${events.length} events in ${service} calendar. Each will open in a new tab.`);
+            
+            events.forEach((event, index) => {
+                setTimeout(() => {
+                    addSingleEventToCalendar(event, service);
+                }, index * 1000); // Delay each by 1 second to avoid overwhelming the browser
+            });
+        }
+        
+        function formatDateForGoogle(date) {
+            // Google Calendar expects YYYYMMDDTHHMMSSZ format
+            return date.toISOString().replace(/[:-]/g, '').split('.')[0] + 'Z';
+        }
             const eventRows = document.querySelectorAll('.event-row');
             const events = [];
             
