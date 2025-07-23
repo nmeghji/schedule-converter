@@ -324,24 +324,20 @@
                 setLoading(true);
                 hideMessages();
 
-                let webContent;
+                let scheduleData;
                 
                 if (manualContent) {
                     // Use manually pasted content
-                    webContent = manualContent;
-                    console.log('Using manually pasted content');
+                    scheduleData = await extractScheduleFromContent(manualContent, apiKey);
                 } else {
-                    // Step 1: Fetch the webpage content
-                    webContent = await fetchWebContent(scheduleUrl);
+                    // Use OpenAI to fetch and extract from URL
+                    scheduleData = await extractScheduleFromURL(scheduleUrl, apiKey);
                 }
                 
-                // Step 2: Extract schedule using AI or manual parsing
-                const scheduleData = await extractScheduleWithAI(webContent, apiKey);
-                
-                // Step 3: Generate ICS file
+                // Generate ICS file
                 const icsContent = generateICS(scheduleData);
                 
-                // Step 4: Download the file
+                // Download the file
                 downloadICS(icsContent, 'schedule.ics');
                 
                 showSuccess(`Schedule converted successfully! Found ${scheduleData.events.length} events. Your ICS file is downloading.`);
@@ -354,82 +350,11 @@
             }
         }
 
-        async function fetchWebContent(url) {
-            const proxies = [
-                // Primary proxy
-                `https://corsproxy.io/?${encodeURIComponent(url)}`,
-                // Backup proxies
-                `https://cors-anywhere.herokuapp.com/${url}`,
-                `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(url)}`,
-                // Direct fetch (might work for some sites)
-                url
-            ];
-
-            let lastError;
-            
-            for (let i = 0; i < proxies.length; i++) {
-                try {
-                    console.log(`Trying proxy ${i + 1}/${proxies.length}: ${proxies[i].split('?')[0]}`);
-                    
-                    const response = await fetch(proxies[i], {
-                        method: 'GET',
-                        headers: {
-                            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
-                        }
-                    });
-                    
-                    if (!response.ok) {
-                        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-                    }
-                    
-                    let content;
-                    const contentType = response.headers.get('content-type') || '';
-                    
-                    if (contentType.includes('application/json')) {
-                        // Handle JSON response from proxy services
-                        const data = await response.json();
-                        content = data.contents || data.data || data.body || JSON.stringify(data);
-                    } else {
-                        // Handle direct HTML response
-                        content = await response.text();
-                    }
-                    
-                    if (content && content.length > 100) {
-                        console.log(`Successfully fetched content using proxy ${i + 1}`);
-                        return content;
-                    } else {
-                        throw new Error('Empty or invalid response');
-                    }
-                    
-                } catch (error) {
-                    console.warn(`Proxy ${i + 1} failed:`, error.message);
-                    lastError = error;
-                    
-                    // Add delay between attempts
-                    if (i < proxies.length - 1) {
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-                }
-            }
-            
-            // If all proxies fail, try manual input option
-            throw new Error(`Unable to fetch webpage content. All proxy services failed. Last error: ${lastError?.message}. 
-
-Alternative: You can copy and paste the schedule content directly instead of using a URL.`);
-        }
-
-        async function extractScheduleWithAI(htmlContent, apiKey) {
-            // First try manual parsing for common schedule formats
-            const manuallyParsed = tryManualParsing(htmlContent);
-            if (manuallyParsed && manuallyParsed.events.length > 0) {
-                return manuallyParsed;
-            }
-
-            // Fallback to AI parsing
+        async function extractScheduleFromURL(url, apiKey) {
             const prompt = `
-            You are a schedule extraction expert. Analyze the following HTML content and extract all schedule/event information.
+            Please visit this URL: ${url}
             
-            IMPORTANT: You must respond with ONLY valid JSON in this exact format:
+            Extract all schedule/event information from the webpage and return ONLY valid JSON in this exact format:
             {
                 "events": [
                     {
@@ -442,20 +367,59 @@ Alternative: You can copy and paste the schedule content directly instead of usi
                 ]
             }
             
-            Rules:
-            - Extract ALL games, matches, events, sessions, classes, or meetings
-            - For sports games: title should be "Home Team vs Visitor Team" or similar
+            Rules for extraction:
+            - Extract ALL games, matches, events, sessions, classes, or meetings you find
+            - For sports games: title should be "Home Team vs Visitor Team" 
             - Use ISO 8601 datetime format (YYYY-MM-DDTHH:mm:ss)
             - If year is missing, use 2024
             - If end time is missing, add 2 hours to start time for games, 1 hour for other events
-            - Include field/room information in location if available
-            - Do not include any text before or after the JSON
+            - Include field/room/venue information in location if available
+            - Respond with ONLY the JSON, no other text
             - Make sure all JSON is properly formatted and valid
-            
-            HTML Content:
-            ${htmlContent.substring(0, 12000)}
             `;
 
+            return await callOpenAI(prompt, apiKey);
+        }
+
+        async function extractScheduleFromContent(content, apiKey) {
+            // First try manual parsing for known formats
+            const manuallyParsed = tryManualParsing(content);
+            if (manuallyParsed && manuallyParsed.events.length > 0) {
+                return manuallyParsed;
+            }
+
+            // Fallback to AI parsing
+            const prompt = `
+            Analyze the following content and extract all schedule/event information. Return ONLY valid JSON in this exact format:
+            {
+                "events": [
+                    {
+                        "title": "Event Title",
+                        "description": "Event Description", 
+                        "startDateTime": "2024-07-09T19:30:00",
+                        "endDateTime": "2024-07-09T21:30:00",
+                        "location": "Event Location"
+                    }
+                ]
+            }
+            
+            Rules for extraction:
+            - Extract ALL games, matches, events, sessions, classes, or meetings
+            - For sports games: title should be "Home Team vs Visitor Team"
+            - Use ISO 8601 datetime format (YYYY-MM-DDTHH:mm:ss)
+            - If year is missing, use 2024
+            - If end time is missing, add 2 hours to start time for games, 1 hour for other events
+            - Include field/room/venue information in location if available
+            - Respond with ONLY the JSON, no other text
+            
+            Content to analyze:
+            ${content.substring(0, 15000)}
+            `;
+
+            return await callOpenAI(prompt, apiKey);
+        }
+
+        async function callOpenAI(prompt, apiKey) {
             try {
                 const response = await fetch('https://api.openai.com/v1/chat/completions', {
                     method: 'POST',
@@ -464,11 +428,11 @@ Alternative: You can copy and paste the schedule content directly instead of usi
                         'Content-Type': 'application/json',
                     },
                     body: JSON.stringify({
-                        model: 'gpt-4o-mini',
+                        model: 'gpt-4o',
                         messages: [
                             {
                                 role: 'system',
-                                content: 'You are a JSON extraction expert. Always respond with valid JSON only, no other text.'
+                                content: 'You are a schedule extraction expert. Always respond with valid JSON only, no other text.'
                             },
                             {
                                 role: 'user',
@@ -482,62 +446,59 @@ Alternative: You can copy and paste the schedule content directly instead of usi
 
                 if (!response.ok) {
                     const errorData = await response.json();
-                    throw new Error(errorData.error?.message || 'OpenAI API request failed');
+                    if (response.status === 401) {
+                        throw new Error('Invalid API key. Please check your OpenAI API key.');
+                    } else if (response.status === 429) {
+                        throw new Error('API rate limit exceeded. Please try again in a few minutes.');
+                    } else {
+                        throw new Error(errorData.error?.message || `OpenAI API error: ${response.status}`);
+                    }
                 }
 
                 const data = await response.json();
                 let content = data.choices[0].message.content.trim();
                 
-                // Remove markdown code blocks if present
+                // Clean up the response
                 content = content.replace(/```json\s*/, '').replace(/```\s*$/, '');
+                content = content.replace(/^[^{]*/, '').replace(/[^}]*$/, '');
                 
-                // Try multiple JSON extraction methods
+                // Parse JSON
                 let jsonData;
-                
-                // Method 1: Direct parsing
                 try {
                     jsonData = JSON.parse(content);
                 } catch (e) {
-                    // Method 2: Extract JSON from text
-                    const jsonMatch = content.match(/\{[\s\S]*?\}(?=\s*$)/);
+                    // Try to extract JSON more aggressively
+                    const jsonMatch = content.match(/\{[\s\S]*\}/);
                     if (jsonMatch) {
                         jsonData = JSON.parse(jsonMatch[0]);
                     } else {
-                        // Method 3: Find JSON boundaries
-                        const startIdx = content.indexOf('{');
-                        const endIdx = content.lastIndexOf('}');
-                        if (startIdx !== -1 && endIdx !== -1 && endIdx > startIdx) {
-                            jsonData = JSON.parse(content.substring(startIdx, endIdx + 1));
-                        } else {
-                            throw new Error('No valid JSON found in response');
-                        }
+                        throw new Error('Could not parse JSON from AI response');
                     }
                 }
                 
-                // Validate the structure
+                // Validate structure
                 if (!jsonData || !jsonData.events || !Array.isArray(jsonData.events)) {
                     throw new Error('Invalid JSON structure - missing events array');
                 }
                 
-                // Validate each event
+                // Filter and validate events
                 jsonData.events = jsonData.events.filter(event => {
                     return event.title && event.startDateTime && event.endDateTime;
                 });
                 
                 if (jsonData.events.length === 0) {
-                    throw new Error('No valid events found in the schedule');
+                    throw new Error('No valid events found in the schedule. Please check the URL or content format.');
                 }
                 
                 return jsonData;
                 
             } catch (error) {
-                if (error.message.includes('API key') || error.message.includes('Unauthorized')) {
-                    throw new Error('Invalid API key. Please check your OpenAI API key.');
-                }
-                console.error('AI Response parsing error:', error);
-                throw new Error(`AI extraction failed: ${error.message}. Try a different schedule URL or format.`);
+                console.error('OpenAI API error:', error);
+                throw error;
             }
         }
+
+
 
         function tryManualParsing(htmlContent) {
             const events = [];
